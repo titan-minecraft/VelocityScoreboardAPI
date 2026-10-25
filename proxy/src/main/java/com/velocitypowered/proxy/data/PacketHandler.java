@@ -26,6 +26,7 @@ import com.velocitypowered.api.scoreboard.ScoreboardManager;
 import com.velocitypowered.proxy.connection.MinecraftSessionHandler;
 import com.velocitypowered.proxy.connection.backend.BackendPlaySessionHandler;
 import com.velocitypowered.proxy.connection.backend.VelocityServerConnection;
+import com.velocitypowered.proxy.connection.client.ConnectedPlayer;
 import com.velocitypowered.proxy.protocol.packet.scoreboard.*;
 import com.velocitypowered.proxy.scoreboard.*;
 import com.velocitypowered.proxy.scoreboard.downstream.DownstreamScoreboard;
@@ -217,6 +218,16 @@ public class PacketHandler {
      * @return  {@code true} if packet should be cancelled, {@code false} if not
      */
     public static boolean handle(@NonNull MinecraftSessionHandler handler, @NonNull TeamPacket packet) {
+        // A seamless server switch keeps the old team on the client, replace it
+        if (packet.getAction() == TeamPacket.TeamAction.REGISTER && getProxy(handler).getTeam(packet.getName()) == null) {
+            DownstreamScoreboard downstream = getDownstream(handler);
+            if (downstream.getTeam(packet.getName()) != null) {
+                TeamPacket unregister = TeamPacket.unregister(packet.getName());
+                downstream.handle(unregister);
+                ((ConnectedPlayer) getPlayer(handler)).getConnection().write(unregister);
+            }
+        }
+
         // Filter out invalid packets
         if (getDownstream(handler).handle(packet)) return true;
 
